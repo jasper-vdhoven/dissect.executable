@@ -1,6 +1,6 @@
 # dissect.executable
 
-A Dissect module implementing a parsers for various executable formats such as PE, ELF and Macho-O. For
+A Dissect module implementing parsers for various executable formats such as PE, ELF and Macho-O. For
 more information, please see [the documentation](https://docs.dissect.tools/en/latest/projects/dissect.executable/index.html).
 
 ## Installation
