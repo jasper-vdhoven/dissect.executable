@@ -101,6 +101,7 @@ enum COMMAND : uint32 {
 typedef struct {
     COMMAND     cmd;
     uint32      cmdsize;
+    uint8       data[cmdsize-8];
 } load_command;
 
 
