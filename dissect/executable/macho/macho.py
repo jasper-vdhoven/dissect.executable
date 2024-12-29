@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import io
-from typing import BinaryIO, Callable, Generic, Iterator, Optional, TypeVar, Union
+from typing import BinaryIO, Generic, Iterator, Optional, TypeVar
 
 from dissect.cstruct import cstruct
 from dissect.cstruct.utils import u32
@@ -14,7 +14,6 @@ class MACHO:
     def __init__(self, fh: BinaryIO):
         self.fh = fh
         offset = fh.tell()
-        # self.e_ident = fh.read(0x4)
         self.e_ident = u32(fh.read(0x4), "<")
         fh.seek(offset)  # This resets the progress back to zero(?)
 
