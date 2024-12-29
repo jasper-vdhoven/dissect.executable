@@ -40,9 +40,9 @@ class MACHO:
         """
         match self.header.cputype:
             case c_common_macho.CPU_TYPE_T.ARM64 | c_common_macho.CPU_TYPE_T.ARM | c_common_macho.CPU_TYPE_T.ARM64_32:
-                self.header.cputype = c_common_macho.CPU_SUBTYPE_ARM(self.header.cpusubtype)
+                self.header.cpusubtype = c_common_macho.CPU_SUBTYPE_ARM(self.header.cpusubtype)
             case c_common_macho.CPU_TYPE_T.X86_64:
-                self.header.cputype = c_common_macho.CPU_SUBTYPE_X86(self.header.cpusubtype)
+                self.header.cpusubtype = c_common_macho.CPU_SUBTYPE_X86(self.header.cpusubtype)
 
         self.commands = CommandTable.from_macho(self)
 
