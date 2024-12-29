@@ -17,9 +17,11 @@ class MACHO:
         self.e_ident = u32(fh.read(0x4), "<")
         fh.seek(offset)  # This resets the progress back to zero(?)
 
+        c_macho_version = c_macho_64
         match self.e_ident:
             case c_common_macho.MAGIC.MACHO_32:
                 self.e_ident = c_common_macho.MAGIC.MACHO_32
+                c_macho_version = c_macho_32
             case c_common_macho.MAGIC.MACHO_64:
                 self.e_ident = c_common_macho.MAGIC.MACHO_64
             case c_common_macho.MAGIC.UNIVERSAL:
@@ -27,9 +29,6 @@ class MACHO:
             case _:
                 raise InvalidSignatureError("Invalid header magic")
 
-        c_macho_version = c_macho_64
-        if self.e_ident == c_macho_version.MAGIC.MACHO_32:
-            c_macho_version = c_macho_32
         self.c_macho = c_macho_version
         self.c_macho.endian = "<"
 
