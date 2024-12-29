@@ -77,14 +77,55 @@ class LoadCommand:
         self.idx = idx
         self.c_macho = c_macho
 
-        self.load_command = c_macho.load_command(fh)
-
     def __repr__(self) -> str:
-        return repr(self.load_command)
+        return repr(self.data)
 
     @classmethod
     def from_command_table(cls, command_table: CommandTable, idx: int) -> LoadCommand:
         result = cls(command_table.fh, idx=idx, c_macho=command_table.c_macho)
+
+        cmd, cmdsize = result.c_macho.uint32[2](result.fh.read(16))
+        result.fh.seek(-16, io.SEEK_CUR)
+        data = result.fh.read(cmdsize)
+
+        match cmd:
+            case result.c_macho.COMMAND.UUID:
+                load_command = result.c_macho.uuid_command(data)
+            case result.c_macho.COMMAND.SEGMENT:
+                load_command = result.c_macho.segment_command(data)
+            case result.c_macho.COMMAND.SEGMENT_64:
+                load_command = result.c_macho.segment_command_64(data)
+            case result.c_macho.COMMAND.DYLD_INFO_ONLY:
+                load_command = result.c_macho.dyld_info_command(data)
+            case result.c_macho.COMMAND.SYMTAB:
+                load_command = result.c_macho.symtab_command(data)
+            case result.c_macho.COMMAND.DYSYMTAB:
+                load_command = result.c_macho.dysymtab_command(data)
+            case result.c_macho.COMMAND.LOAD_DYLINKER:
+                load_command = result.c_macho.dylinker_command(data)
+            case result.c_macho.COMMAND.BUILD_VERSION:
+                load_command = result.c_macho.build_version_command(data)
+            case result.c_macho.COMMAND.SOURCE_VERSION:
+                load_command = result.c_macho.source_version_command(data)
+            case result.c_macho.COMMAND.MAIN:
+                load_command = result.c_macho.entry_point_command(data)
+            case (
+                result.c_macho.COMMAND.FUNCTION_STARTS
+                | result.c_macho.COMMAND.DATA_IN_CODE
+                | result.c_macho.COMMAND.CODE_SIGNATURE
+            ):
+                load_command = result.c_macho.linkedit_data_command(data)
+            case result.c_macho.COMMAND.ENCRYPTION_INFO:
+                load_command = result.c_macho.encryption_info_command(data)
+            case result.c_macho.COMMAND.ENCRYPTION_INFO_64:
+                load_command = result.c_macho.encryption_info_command_64(data)
+            case result.c_macho.COMMAND.LOAD_DYLIB:
+                load_command = result.c_macho.dylib_command(data)
+            case _:
+                load_command = result.c_macho.load_command(data)
+
+        result.data = load_command
+
         return result
 
 
@@ -97,18 +138,23 @@ class CommandTable(Table[LoadCommand]):
         self.c_macho = c_macho
 
     def __repr__(self) -> str:
-        return f"<CommandTable offset=0x{self.offset:x} size=0x{self.size:x}>"
+        return f"<CommandTable ncmds={self.ncmds} size=0x{self.size:x}>"
 
     def _create_item(self, idx: int) -> LoadCommand:
         cmd, cmdsize = self.c_macho.uint32[2](self.fh.read(16))
         self.fh.seek(-16, io.SEEK_CUR)
-
         return_class = LoadCommand
+        """
+        Maybe load command parsing needs to happen here?
+        """
+
+        # self.load_command = self.c_macho.load_command(self.fh)
+
         return return_class.from_command_table(self, idx)
 
     @classmethod
     def from_macho(cls, macho: MACHO) -> CommandTable:
         header = macho.header
         ncmds = header.ncmds
-        size = header.size
+        size = header.sizeofcmds
         return cls(fh=macho.fh, ncmds=ncmds, size=size, c_macho=macho.c_macho)
