@@ -1,4 +1,4 @@
-from enum import Flag, IntEnum
+from enum import IntEnum
 
 from dissect.cstruct import cstruct
 from dissect.executable.elf.c_elf import copy_cstruct
@@ -9,8 +9,8 @@ typedef struct {
     CPU_TYPE_T  cputype;
     uint32      cpusubtype;
     FILE_TYPE   file_type;
-    uint32      n_load_commands;
-    uint32      s_load_commands;
+    uint32      ncmds;
+    uint32      sizeofcmds;
     flags       flags;
 } MACHO_HEADER;
 
@@ -32,12 +32,16 @@ typedef struct {
 """
 
 macho_def = """
-#define NT_SIGINFO          b"0x53494749"
-
 enum MAGIC : uint32 {
     MACHO_32    = 0xFEEDFACE,
     MACHO_64    = 0xFEEDFACF,
-    UNIVERSAL   = 0xCAFEBABE,
+    UNIVERSAL   = 0xCAFEBABE, /*Might not be relevant; clashes with JAVA*/
+};
+
+typedef int     vm_prot_t;
+
+union lc_str {
+    uint32_t    offset;
 };
 
 enum COMMAND : uint32 {
@@ -97,13 +101,19 @@ enum COMMAND : uint32 {
     FILESET_ENTRY                   = 0x35,
 };
 
-
-typedef struct {
-    COMMAND     cmd;
-    uint32      cmdsize;
-    uint8       data[cmdsize-8];
-} load_command;
-
+enum PLATFORM : uint32 {
+    PLATFORM_MACOS                  = 1,
+    PLATFORM_IOS                    = 2,
+    PLATFORM_TVOS                   = 3,
+    PLATFORM_WATCHOS                = 4,
+    PLATFORM_BRIDGEOS               = 5,
+    PLATFORM_MACCATALYST            = 6,
+    PLATFORM_IOSSIMULATOR           = 7,
+    PLATFORM_TVOSSIMULATOR          = 8,
+    PLATFORM_WATCHOSSIMULATOR       = 9,
+    PLATFORM_DRIVERKIT              = 10,
+    PLATFORM_MAX                    = PLATFORM_DRIVERKIT
+};
 
 enum CPU_TYPE_T : uint32 {
     ANY         = 0,
@@ -132,23 +142,23 @@ enum CPU_TYPE_T : uint32 {
 };
 
 enum CPU_SUBTYPE_ARM : uint32 {
-    ALLARM          = 0,
-    ARMA500ARCH     = 1,
-    ARMA500         = 2,
-    ARMA440         = 3,
-    ARMM4           = 4,
-    ARMV4T          = 5,
-    ARMV6           = 6,
-    ARMV5TEJ        = 7,
-    ARMXSCALE       = 8,
-    ARMV7           = 9,
-    ARMV7F          = 10,
-    ARMV7S          = 11,
-    ARMV7K          = 12,
-    ARMV8           = 13,
-    ARMV6M          = 14,
-    ARMV7M          = 15,
-    ARMV7EM         = 16,
+    ALLARM          = 0x0,
+    ARMA500ARCH     = 0x1,
+    ARMA500         = 0x2,
+    ARMA440         = 0x3,
+    ARMM4           = 0x4,
+    ARMV4T          = 0x5,
+    ARMV6           = 0x6,
+    ARMV5TEJ        = 0x7,
+    ARMXSCALE       = 0x8,
+    ARMV7           = 0x9,
+    ARMV7F          = 0xa,
+    ARMV7S          = 0xb,
+    ARMV7K          = 0xc,
+    ARMV8           = 0xd,
+    ARMV6M          = 0xe,
+    ARMV7M          = 0xf,
+    ARMV7EM         = 0x10,
 };
 
 enum CPU_SUBTYPE_X86 : uint32 {
@@ -183,6 +193,133 @@ enum FILE_TYPE : uint32 {
     FILESET         = 12,
 };
 
+enum VM_PROT : vm_prot_t {
+    VM_PROT_NONE        = 0x00,
+    VM_PROT_READ        = 0x01,
+    VM_PROT_WRITE       = 0x02,
+    VM_PROT_EXECUTE     = 0x04,
+    VM_PROT_EXEC_READ   = VM_PROT_READ|VM_PROT_EXECUTE,
+    VM_PROT_DEFAULT     = VM_PROT_READ|VM_PROT_WRITE,
+    VM_PROT_ALL         = VM_PROT_READ|VM_PROT_WRITE|VM_PROT_EXECUTE,
+};
+
+typedef struct {
+    COMMAND     cmd;
+    uint32      cmdsize;
+    uint8       data[cmdsize-8];
+} load_command;
+
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    uint32_t    rebase_off;
+    uint32_t    rebase_size;
+    uint32_t    bind_off;
+    uint32_t    bind_size;
+    uint32_t    lazy_bind_off;
+    uint32_t    lazy_bind_size;
+    uint32_t    export_off;
+    uint32_t    export_size;
+} dyld_info_command;
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    uint32_t    symoff;
+    uint32_t    nysms;
+    uint32_t    stroff;
+    uint32_t    strsize;
+} symtab_command;
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    uint32_t    ilocalsym;
+    uint32_t    nlocalsym;
+    uint32_t    iextdefsym;
+    uint32_t    nextdefsym;
+    uint32_t    iundefsym;
+    uint32_t    nundefsym;
+    uint32_t    tocoff;
+    uint32_t    ntoc;
+    uint32_t    modtaboff;
+    uint32_t    nmodtab;
+    uint32_t    extrefsymoff;
+    uint32_t    nextrefsyms;
+    uint32_t    indirectsymoff;
+    uint32_t    nindirectsyms;
+    uint32_t    extreloff;
+    uint32_t    nextrel;
+    uint32_t    locreloff;
+    uint32_t    nlocrel;
+} dysymtab_command;
+
+typedef struct {
+    COMMAND         cmd;
+    uint32_t        cmdsize;
+    union lc_str    name;
+} dylinker_command;
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    PLATFORM    platform;
+    uint32_t    minos;
+    uint32_t    sdk;
+    uint32_t    ntools;
+} build_version_command;
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    uint64_t    version;
+} source_version_command;
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    uint64_t    entryoff;
+    uint64_t    stacksize;
+} entry_point_command;
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    uint32_t    dataoff;
+    uint32_t    datasize;
+} linkedit_data_command;
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    uint32_t    cryptoff;
+    uint32_t    cryptsize;
+    uint32_t    cryptid;
+} encryption_info_command;
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    uint32_t    cryptoff;
+    uint32_t    cryptsize;
+    uint32_t    cryptid;
+    uint32_t    pad;
+} encryption_info_command_64;
+
+typedef struct {
+    union lc_str    name;
+    uint32_t        timestamp;
+    uint32_t        current_version;
+    uint32_t        compatibility_version;
+} dylib;
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    dylib       dylib;
+} dylib_command;
+
 typedef struct {
     uint32          noUndefs: 1;
     uint32          incrLink: 1;
@@ -214,8 +351,86 @@ typedef struct {
     uint32          simSupport: 1;
     uint32          dylibInCache: 1;
 } flags;
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    char        segname[16];
+    uint64_t    vmaddr;
+    uint64_t    vmsize;
+    uint64_t    fileoff;
+    uint64_t    filesize;
+    VM_PROT     maxprot;
+    VM_PROT     initprot;
+    uint32_t    nsects;
+    uint32_t    flags;
+} segment_command;
+
+
+typedef struct {
+    COMMAND     cmd;
+    uint32_t    cmdsize;
+    char        segname[16];
+    uint64_t    vmaddr;
+    uint64_t    vmsize;
+    uint64_t    fileoff;
+    uint64_t    filesize;
+    VM_PROT     maxprot;
+    VM_PROT     initprot;
+    uint32_t    nsects;
+    uint32_t    flags;
+} segment_command_64;
+
+
+typedef struct {
+    uint32_t    SG_HIGHVM: 1;
+    uint32_t    SG_FVMLIB: 1;
+    uint32_t    SG_NORELOC: 1;
+    uint32_t    SG_PROTECTED_VERSION_1: 1;
+    uint32_t    SG_READ_ONLY: 1;
+} sg_flags;
+
+
+typedef struct {
+    char        sectname[16];
+    char        segname[16];
+    uint32_t    addr;
+    uint32_t    size;
+    uint32_t    offset;
+    uint32_t    align;
+    uint32_t    reloff;
+    uint32_t    nreloc;
+    uint32_t    flags;
+    uint32_t    reserved1;
+    uint32_t    reserved2;
+} section;
+
+typedef struct {
+    char        sectname[16];
+    char        segname[16];
+    uint64_t    addr;
+    uint64_t    size;
+    uint32_t    offset;
+    uint32_t    align;
+    uint32_t    reloff;
+    uint32_t    nreloc;
+    uint32_t    flags;
+    uint32_t    reserved1;
+    uint32_t    reserved2;
+    uint32_t    reserved3;
+} section_64;
+
+
+typedef struct {
+    uint32_t    cmd;
+    uint32_t    cmdsize;
+    uint8_t     uuid[16];
+} uuid_command;
+
 """
 
 c_common_macho = cstruct().load(macho_def)
 c_macho_32 = copy_cstruct(c_common_macho).load(macho_32_def)
 c_macho_64 = copy_cstruct(c_common_macho).load(macho_64_def)
+
+COMMAND: IntEnum = c_common_macho.COMMAND
