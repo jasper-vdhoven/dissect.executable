@@ -36,6 +36,7 @@ enum MAGIC : uint32 {
     MACHO_32    = 0xFEEDFACE,
     MACHO_64    = 0xFEEDFACF,
     UNIVERSAL   = 0xCAFEBABE, /*Might not be relevant; clashes with JAVA*/
+    LASREVINU   = 0xBEBAFECA
 };
 
 typedef int     vm_prot_t;
