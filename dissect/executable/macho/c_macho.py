@@ -93,13 +93,13 @@ enum COMMAND : uint32 {
     DYLIB_CODE_SIGN_DRS             = 0x2b,
     ENCRYPTION_INFO_64              = 0x2c,
     LINKER_OPTION                   = 0x2d,
-    LINKER_OPTION_OPTIMIZATION_HINT = 0x2e,
+    LINKER_OPTIMIZATION_HINT        = 0x2e,
     VERSION_MIN_TVOS                = 0x30,
     NOTE                            = 0x31,
     BUILD_VERSION                   = 0x32,
     DYLD_EXPORTS_TRIE               = 0x80000033,
     DYLD_CHAINED_FIXUPS             = 0x80000034,
-    FILESET_ENTRY                   = 0x35,
+    FILESET_ENTRY                   = 0x80000035,
 };
 
 enum PLATFORM : uint32 {
@@ -128,7 +128,7 @@ enum CPU_TYPE_T : uint32 {
     MIPS        = 8,
     NS32352     = 9,
     MC98000     = 10,
-    HP-PA       = 11,
+    HP_PA       = 11,
     ARM         = 12,
     ARM64       = 16777228,
     ARM64_32    = 33554444,
