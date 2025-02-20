@@ -205,6 +205,19 @@ enum VM_PROT : vm_prot_t {
 };
 
 typedef struct {
+    CPU_TYPE_T     cputype;
+    int32           cpusubtype;
+    uint32_t        offset;
+    uint32_t        size;
+    uint32_t        align;
+} fat_arch;
+
+typedef struct {
+    uint32_t    magic;
+    uint32_t    nfat_arch; /* Number of architectures embedded within fat binary */
+} FAT_HEADER;
+
+typedef struct {
     COMMAND     cmd;
     uint32      cmdsize;
     uint8       data[cmdsize-8];
