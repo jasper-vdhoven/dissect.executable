@@ -3,7 +3,8 @@ from __future__ import annotations
 import io
 from typing import BinaryIO, Generic, Iterator, Optional, TypeVar
 
-from dissect.cstruct import cstruct
+from dissect.cstruct import cstruct, swap32
+from dissect.cstruct import dumpstruct
 from dissect.cstruct.utils import u32
 
 from dissect.executable.exception import InvalidSignatureError
@@ -24,15 +25,41 @@ class MACHO:
                 c_macho_version = c_macho_32
             case c_common_macho.MAGIC.MACHO_64:
                 self.e_ident = c_common_macho.MAGIC.MACHO_64
-            case c_common_macho.MAGIC.UNIVERSAL:
+            case c_common_macho.MAGIC.UNIVERSAL | c_common_macho.MAGIC.LASREVINU:
                 self.e_ident = c_common_macho.MAGIC.UNIVERSAL
             case _:
                 raise InvalidSignatureError("Invalid header magic")
 
         self.c_macho = c_macho_version
-        self.c_macho.endian = "<"
+        self.c_macho.endian = ">"
 
-        self.header = self.c_macho.MACHO_HEADER(fh)
+        if self.e_ident in (c_common_macho.MAGIC.UNIVERSAL, c_common_macho.MAGIC.LASREVINU):
+            # Change endian to big as Fat header is parsed as big endian
+            self.c_macho.endian = ">"
+            self.fat_header = self.c_macho.FAT_HEADER(fh)
+            self.fat_archs = []
+            for _ in range(swap32(self.fat_header.nfat_arch)):
+                self.fat_archs.append(self.c_macho.fat_arch(fh))
+                self.fat_archs[_].cputype = c_common_macho.CPU_TYPE_T(swap32(self.fat_archs[_].cputype))
+
+            # Restore endian setting as remainder will be little endian
+            self.c_macho.endian = "<"
+            print()
+
+        if self.fat_archs:
+            self.macho_binary = {}
+            for i in self.fat_archs:
+                # Stored as BE in binary
+                fh.seek(swap32(i.offset))
+                # self.macho_binary[str(i.cputype).split(".")[1]] = self.c_macho.MACHO_HEADER(fh)
+                self.macho_binary[str(i.cputype).split(".")[1]] = self.c_macho.MACHO_HEADER(fh)
+                self.commands = CommandTable.from_macho(self)
+
+                # self.macho_binary[str(i.cputype).split(".")[1]] = [_binary, _commands]
+
+        else:
+            self.header = self.c_macho.MACHO_HEADER(fh)
+
         self.header.magic = self.e_ident
 
         """
@@ -110,9 +137,14 @@ class LoadCommand:
             case result.c_macho.COMMAND.MAIN:
                 load_command = result.c_macho.entry_point_command(data)
             case (
-                result.c_macho.COMMAND.FUNCTION_STARTS
+                result.c_macho.COMMAND.CODE_SIGNATURE
+                | result.c_macho.COMMAND.SEGMENT_SPLIT_INFO
+                | result.c_macho.COMMAND.DYLIB_CODE_SIGN_DRS
+                | result.c_macho.COMMAND.LINKER_OPTIMIZATION_HINT
+                | result.c_macho.COMMAND.DYLD_EXPORTS_TRIE
+                | result.c_macho.COMMAND.DYLD_CHAINED_FIXUPS
+                | result.c_macho.COMMAND.FUNCTION_STARTS
                 | result.c_macho.COMMAND.DATA_IN_CODE
-                | result.c_macho.COMMAND.CODE_SIGNATURE
             ):
                 load_command = result.c_macho.linkedit_data_command(data)
             case result.c_macho.COMMAND.ENCRYPTION_INFO:
@@ -141,14 +173,7 @@ class CommandTable(Table[LoadCommand]):
         return f"<CommandTable ncmds={self.ncmds} size=0x{self.size:x}>"
 
     def _create_item(self, idx: int) -> LoadCommand:
-        cmd, cmdsize = self.c_macho.uint32[2](self.fh.read(16))
-        self.fh.seek(-16, io.SEEK_CUR)
         return_class = LoadCommand
-        """
-        Maybe load command parsing needs to happen here?
-        """
-
-        # self.load_command = self.c_macho.load_command(self.fh)
 
         return return_class.from_command_table(self, idx)
 
