@@ -2,18 +2,10 @@ from __future__ import annotations
 
 from functools import cached_property
 from io import BytesIO
-from typing import TYPE_CHECKING, Any, BinaryIO, Union
-
-from dissect.util.ts import from_unix, wintimestamp
-
-try:
-    from typing import TypeAlias  # novermin
-except ImportError:
-    # COMPAT: Remove this when we drop Python 3.9
-    TypeAlias = Any
-
+from typing import TYPE_CHECKING, Any, BinaryIO, TypeAlias
 
 from dissect.util.stream import RangeStream
+from dissect.util.ts import from_unix, wintimestamp
 
 from dissect.executable.pe.c_pe import c_pe
 from dissect.executable.pe.directory.base import DataDirectory
@@ -268,7 +260,7 @@ class ResourceDirectory(DataDirectory):
         if len(version) != 1:
             raise ValueError(f"Expected exactly one version resource, found {len(version)}")
 
-        _Node: TypeAlias = tuple[str, Union[str, bytes, None], list["_Node"]]
+        _Node: TypeAlias = tuple[str, str | bytes | None, list["_Node"]]
 
         def _parse_lvt(fh: BinaryIO) -> _Node | None:
             start = fh.tell()
