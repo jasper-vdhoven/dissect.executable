@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from io import BytesIO
 
 from dissect.executable.elf.elf import Segment, c_elf_64
@@ -9,9 +11,9 @@ def create_segment(segment_data: bytes) -> Segment:
     return Segment(fh, 0)
 
 
-def test_segment():
+def test_segment() -> None:
     orig_data = b"hello_world"
     segment = create_segment(orig_data)
     assert segment.offset == len(c_elf_64.Phdr)
     assert segment.size == len(orig_data)
-    assert segment.contents == orig_data
+    assert segment.data == orig_data
