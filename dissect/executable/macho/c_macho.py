@@ -228,7 +228,7 @@ enum VM_PROT : vm_prot_t {
 typedef struct {
     COMMAND     cmd;
     uint32      cmdsize;
-    uint8       data[cmdsize-8];
+    // uint8       data[cmdsize-8];
 } load_command;
 
 typedef struct {
