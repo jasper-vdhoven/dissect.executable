@@ -51,9 +51,11 @@ class MachO:
 
         self.macho_header = self.c_macho.macho_header(fh)
         dumpstruct(self.macho_header)
-        # self.load_commands = [LoadCommand.from_fh(self, self.fh) for _ in range(self.macho_header.ncmds)]
-        self.lc_offset = fh.tell()
-        self.load_commands = LoadCommandTable.from_macho(self)
+        # self.load_commands = LoadCommandTable.from_macho(self)
+
+        self.load_commands = [LoadCommand.from_fh(self, self.fh) for _ in range(self.macho_header.ncmds)]
+        # self.lc_offset = fh.tell()
+        # self.load_commands = LoadCommandTable.from_macho(self)
 
         print()
 
@@ -83,15 +85,10 @@ class Table(Generic[T]):
 
 
 class LoadCommand:
-    def __init__(self, fh: BinaryIO, idx: int | None = None, c_macho: cstruct = c_macho_64):
-        self.fh = fh
-        self.idx = idx
-        self.c_macho = c_macho
-
-        self.header = c_macho.load_command(fh)
-        self.cmd = self.header.cmd
-        self.cmdsize = self.header.cmdsize
-        self.data = self.header.data
+    def __init__(self, macho: MachO, header: c_macho_64.load_command) -> None:
+        self.macho = macho
+        self.header = header
+        self.data = header.data
 
     def __repr__(self) -> str:
         return repr(self.header)
@@ -99,6 +96,7 @@ class LoadCommand:
     @classmethod
     def from_fh(cls, macho: MachO, fh: BinaryIO) -> None:
         header = c_macho_64.load_command(fh)
+        header.data = fh.read(header.cmdsize - 8)
         return cls(macho, header)
 
     @classmethod
