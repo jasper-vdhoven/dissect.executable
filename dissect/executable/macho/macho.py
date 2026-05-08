@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-import io
-from typing import BinaryIO, Callable, Generic, Iterator, TypeVar
+from typing import TYPE_CHECKING, BinaryIO, Generic, TypeVar
 
-from dissect.cstruct import cstruct, dumpstruct
-from dissect.cstruct.utils import swap, swap32
+from dissect.cstruct import dumpstruct
 
 from dissect.executable.exception import InvalidSignatureError
-from dissect.executable.macho import c_macho
 from dissect.executable.macho.c_macho import c_common_macho, c_macho_32, c_macho_64
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
+
+    from dissect.cstruct import cstruct
 
 
 class MachO:
@@ -135,4 +137,3 @@ class LoadCommandTable(Table[LoadCommand]):
     def _create_item(self, idx: int) -> LoadCommand:
         self.fh.seek(self.offset + self.size * idx)
         return LoadCommand.from_load_command_table(self, idx)
-
