@@ -100,7 +100,13 @@ class LoadCommand:
 
         fh.seek(offset)
         header = c_macho.load_command(fh)
-        data = fh.read(header.cmdsize - 8)  # 2 x uint32_t
+        """
+        Move the offset back the size of the load command header.
+        This because the later load command structs include the header as well as the body.
+        And because the load command structs are dynamic, we can thus reuse the body when needed.
+        """
+        fh.seek(fh.tell() - 8)
+        data = fh.read(header.cmdsize)
 
         return cls(table, header, fh.tell(), data)
 
