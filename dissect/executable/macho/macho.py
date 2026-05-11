@@ -51,12 +51,8 @@ class MachO:
 
         self.macho_header = self.c_macho.macho_header(fh)
         dumpstruct(self.macho_header)
-        # self.load_commands = LoadCommandTable.from_macho(self)
-
-        self.load_commands = [LoadCommand.from_fh(self, self.fh) for _ in range(self.macho_header.ncmds)]
-        # self.lc_offset = fh.tell()
-        # self.load_commands = LoadCommandTable.from_macho(self)
-
+        self.load_commands = LoadCommandTable.from_macho(self)
+        # self.load_commands = [LoadCommand.from_fh(self, self.fh) for _ in range(self.macho_header.ncmds)]
         print()
 
 
@@ -85,53 +81,61 @@ class Table(Generic[T]):
 
 
 class LoadCommand:
-    def __init__(self, macho: MachO, header: c_macho_64.load_command) -> None:
-        self.macho = macho
+    # TODO: clean this up and add proper typing
+    def __init__(self, table, header, offset: int, data: bytes) -> None:
+        self.table = table
         self.header = header
-        self.data = header.data
+        self.cmd_type = header.cmd.name
+        self.cmd_size = header.cmdsize
+        self.offset = offset
+        self.data = data
 
     def __repr__(self) -> str:
-        return repr(self.header)
+        return f"<LoadCommand {self.header.cmd.name} at offset=0x{self.offset:x} size=0x{self.cmd_size:x}>"
 
     @classmethod
-    def from_fh(cls, macho: MachO, fh: BinaryIO) -> None:
-        header = c_macho_64.load_command(fh)
-        header.data = fh.read(header.cmdsize - 8)
-        return cls(macho, header)
-
-    @classmethod
-    def from_load_command_table(cls, table: LoadCommandTable, idx: int | None = None) -> LoadCommand:
+    def from_load_command_table(cls, table: LoadCommandTable, offset: int) -> LoadCommand:
         fh = table.fh
-        return cls(fh, idx, table.c_macho)
+        c_macho = table.c_macho
+
+        fh.seek(offset)
+        header = c_macho.load_command(fh)
+        data = fh.read(header.cmdsize - 8)  # 2 x uint32_t
+
+        return cls(table, header, fh.tell(), data)
 
 
 class LoadCommandTable(Table[LoadCommand]):
-    def __init__(self, fh: BinaryIO, offset: int, entries: int, size: int, c_macho: cstruct = c_macho_64):
+    def __init__(self, fh: BinaryIO, entries: int, offset: int, c_macho: cstruct = c_macho_64):
         super().__init__(entries)
         self.fh = fh
+        self.entries = entries
         self.offset = offset
-        self.size = size
         self.c_macho = c_macho
 
+        # populate self.items so we can iter over them
+        self._parse()
+
     def __repr__(self) -> str:
-        return f"<SegmentTable offset=0x{self.offset:x} size=0x{self.size:x}>"
+        return f"<LoadCommandTable offset=0x{self.offset:x} size=0x{self.size:x}>"
+
+    def _parse(self) -> None:
+        """Iterate and parse Mach-O load command.
+        In order to iterate over the load commands self.items needs to be populated.
+
+        Returns: None.
+        """
+        current_offset = self.offset
+        for i in range(self.entries):
+            item = self._create_item(current_offset)
+            if not item:
+                break
+            self.items[i] = item
+            current_offset += item.cmd_size
+
+    def _create_item(self, idx: int) -> LoadCommand:
+        return LoadCommand.from_load_command_table(self, idx)
 
     @classmethod
     def from_macho(cls, macho: MachO) -> LoadCommandTable:
-        header = macho.macho_header
-        load_commands = header.ncmds
-        size_of_commands = header.sizeofcmds
-        # TODO: handle offsets and sizes better; currently reaches EOF as load command sizes are not fixed
-        offset = macho.lc_offset
-
-        return cls(
-            fh=macho.fh,
-            offset=offset,
-            entries=load_commands,
-            size=size_of_commands,
-            c_macho=macho.c_macho,
-        )
-
-    def _create_item(self, idx: int) -> LoadCommand:
-        self.fh.seek(self.offset + self.size * idx)
-        return LoadCommand.from_load_command_table(self, idx)
+        return cls(macho.fh, macho.macho_header.ncmds, macho.macho_header.size)
