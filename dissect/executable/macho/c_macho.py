@@ -448,6 +448,12 @@ typedef struct {
     uint8_t     uuid[16];
 } uuid_command;
 
+struct rpath_command {
+    uint32_t	 cmd;		/* LC_RPATH */
+    uint32_t	 cmdsize;	/* includes string */
+    union lc_str path;		/* path to add to run path */
+};
+
 """
 
 c_common_macho = cstruct().load(macho_def)
