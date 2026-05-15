@@ -168,7 +168,7 @@ enum COMMAND : uint32 {
     SUB_LIBRARY                     = 0x15,
     TWOLEVEL_HINTS                  = 0x16,
     PREBIND_CKSUM                   = 0x17,
-    LOAD_WEAK_DyLB                  = 0x80000018,
+    LOAD_WEAK_DYLIB                 = 0x80000018,
     SEGMENT_64                      = 0x19,
     ROUTINES_64                     = 0x1a,
     UUID                            = 0x1b,
