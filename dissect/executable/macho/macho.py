@@ -89,6 +89,7 @@ class LoadCommand:
         self.cmd_size = header.cmdsize
         self.offset = offset
         self.data = data
+        self._body = None
 
     def __repr__(self) -> str:
         return f"<LoadCommand {self.header.cmd.name} at offset=0x{self.offset:x} size=0x{self.cmd_size:x}>"
@@ -109,6 +110,38 @@ class LoadCommand:
         data = fh.read(header.cmdsize)
 
         return cls(table, header, fh.tell(), data)
+
+    @property
+    def body(self):
+        if self._body is None:
+            self._body = self._parse_lc_body()
+        return self._body
+
+    def _parse_lc_body(self):
+        lc_struct_name = self.cmd_type.lower().replace("lc", "") + "_command"
+
+        """
+        These load commands deviate from the standard and thus have an override to match them to their cstruct
+        struct defs.
+        """
+        lc_overrides = {
+            "code_signature_command": "linkedit_data_command",
+            "data_in_code_command": "linkedit_data_command",
+            "dyld_chained_fixups_command": "linkedit_data_command",
+            "dyld_exports_trie_command": "linkedit_data_command",
+            "function_starts_command": "linkedit_data_command",
+            "load_dylib_command": "dylib_command",
+            "load_dylinker_command": "dylinker_command",
+            "load_weak_dylib_command": "dylib_command",
+            "main_command": "entry_point_command",
+            "segment_64_command": "segment_command_64",
+        }
+        lc_struct_name = lc_overrides.get(lc_struct_name, lc_struct_name)
+        lc_struct_cls = getattr(self.table.c_macho, lc_struct_name, None)
+        if lc_struct_cls is None:
+            return None
+
+        return lc_struct_cls(self.data)
 
 
 class LoadCommandTable(Table[LoadCommand]):
